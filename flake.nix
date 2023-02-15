@@ -40,6 +40,7 @@
             "${liqwid-libs}/plutarch-quickcheck"
             "${liqwid-libs}/plutarch-unit"
             "${liqwid-libs}/liqwid-script-export"
+            "${liqwid-libs}/plutarch-context-builder"
           ];
         })
       ];
