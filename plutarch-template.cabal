@@ -13,8 +13,8 @@ version:            0.1.0.0
 
 -- The license under which the package is released.
 -- license:
-author:             SolidSnake
-maintainer:         solid@snake
+author:             colll78
+maintainer:         colll78@colll78
 
 -- A copyright notice.
 -- copyright:
@@ -79,6 +79,7 @@ common lang
     PostfixOperators
     QualifiedDo
     RankNTypes
+    RecordWildCards
     RelaxedPolyRec
     ScopedTypeVariables
     StandaloneDeriving
@@ -95,7 +96,7 @@ common lang
 
 library
   import:          lang
-  exposed-modules: AlwaysSucceeds
+  exposed-modules: EmurgoMinting
 
   -- Compile
 
@@ -107,6 +108,8 @@ library
     , cardano-binary
     , data-default
     , plutarch
+    , plutarch-extra
+    , liqwid-plutarch-extra
     , plutus-core
     , plutus-ledger-api
     , plutus-simple-model

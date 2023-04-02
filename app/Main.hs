@@ -1,6 +1,6 @@
 module Main (main) where
 
-import AlwaysSucceeds qualified
+import EmurgoMinting qualified
 import Data.Default (
   def,
  )
@@ -10,4 +10,4 @@ import Ply.Plutarch (
 
 main :: IO ()
 main = do
-  writeTypedScript def "test" "./alwaysSucceeds.plutus" AlwaysSucceeds.validator
+  writeTypedScript def "test" ("./compiled/emurgoMintingPolicy.plutus") EmurgoMinting.emurgoMintingPolicy
