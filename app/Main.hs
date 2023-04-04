@@ -1,9 +1,9 @@
 module Main (main) where
 
-import EmurgoMinting qualified
 import Data.Default (
   def,
  )
+import EmurgoMinting qualified
 import Ply.Plutarch (
   writeTypedScript,
  )

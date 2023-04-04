@@ -25,6 +25,7 @@
         (tooling.lib.mkHaskellFlakeModule1 {
           project.src = ./.;
           project.shell.withHoogle = true;
+          project.shell.tools.stack = "2.9.1";
           project.modules = [
             ({ config, ... }: {
               packages.plutus-simple-model.doHaddock = false;

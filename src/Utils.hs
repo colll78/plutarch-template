@@ -1,4 +1,4 @@
-module Utils where 
+module Utils where
 
 import Plutarch.Api.V2
 import Plutarch.Prelude
@@ -61,4 +61,3 @@ pnegativeSymbolValueOf ::
     (s :: S).
   Term s (PCurrencySymbol :--> (PValue keys amounts :--> PInteger))
 pnegativeSymbolValueOf = phoistAcyclic $ psymbolValueOfHelper #$ plam (#< 0)
-
