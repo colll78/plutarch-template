@@ -96,8 +96,10 @@ common lang
 
 library
   import:          lang
-  exposed-modules: EmurgoMinting
-
+  exposed-modules: 
+    EmurgoMinting
+    DAOValidator
+    Utils 
   -- Compile
 
   build-depends:

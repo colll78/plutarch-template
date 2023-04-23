@@ -1,40 +1,60 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE ViewPatterns #-}
-module DAOValidator (emurgoDAOValidator) where
+
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+module DAOValidator (emurgoDAOValidatorW) where
 
 import Plutarch.Api.V2 
 import Plutarch.Api.V1 (PCredential (PPubKeyCredential, PScriptCredential))
 import Plutarch.DataRepr
 import Plutarch.Api.V1.Value 
+import Plutarch.Bool
 import Plutarch.Prelude
 import Plutarch.Extra.ScriptContext (ptryFromInlineDatum, pfromPDatum)
+import Utils (ppositiveSymbolValueOf, (#>), (#>=))
+import "liqwid-plutarch-extra" Plutarch.Extra.TermCont 
 
-pkh1 :: Term s PPubKeyCredential 
+pkh1 :: Term s PPubKeyHash 
 pkh1 = pconstant "deadbeef1"
 
-pkh2 :: Term s PPubKeyCredential 
+pkh2 :: Term s PPubKeyHash 
 pkh2 = pconstant "deadbeef2"
 
-pkh3 :: Term s PPubKeyCredential 
+pkh3 :: Term s PPubKeyHash 
 pkh3 = pconstant "deadbeef3"
 
 data PDaoAction (s :: S) = 
-    Add (Term s (PDataRecord '["pkh" ':= PPubKeyCredential]))
-   | Remove (Term s (PDataRecord '["pkh" ':= PPubKeyCredential]))
+    Add (Term s (PDataRecord '["pkh" ':= PPubKeyHash]))
+   | Remove (Term s (PDataRecord '["pkh" ':= PPubKeyHash]))
    | Approve (Term s (PDataRecord '[]))
- deriving stock (Generic, Enum, Bounded)
+ deriving stock (Generic)
  deriving anyclass (PlutusType, PIsData, PEq, PShow)
 
-data PDaoDatum (s :: S) = 
-   PDaoDatum (Term s (PDataRecord '["approvedSignatories" ':= PBuiltinList PPubKeyCredential, "requiredNoOfSigs" ':= PInteger]))
- deriving stock (Generic)
- deriving anyclass (PlutusType, PIsData, PShow)
+instance DerivePlutusType PDaoAction where
+  type DPTStrat _ = PlutusTypeData 
 
-ptxSignedBy :: Term s (PBuiltinList PPubKeyCredential :--> PPubKeyCredential :--> PBool)
+instance PTryFrom PData (PAsData PDaoAction)
+instance PTryFrom PData PDaoAction 
+
+data PDaoDatum (s :: S) = 
+   PDaoDatum (Term s (PDataRecord '["approvedSignatories" ':= PBuiltinList (PAsData PPubKeyHash), "requiredNoOfSigs" ':= PInteger]))
+ deriving stock (Generic)
+ deriving anyclass (PlutusType, PIsData, PDataFields)
+
+instance DerivePlutusType PDaoDatum where
+  type DPTStrat _ = PlutusTypeData 
+
+instance PTryFrom PData (PAsData PDaoDatum)
+instance PTryFrom PData PDaoDatum 
+
+ptxSignedBy :: Term s (PBuiltinList (PAsData PPubKeyHash) :--> (PAsData PPubKeyHash) :--> PBool)
 ptxSignedBy = phoistAcyclic $ plam $ \sigs pkh -> pelem # pkh # sigs 
 
-paysToCredential :: Term s (PValidatorHash :--> PTxOut :--> PBool)
+paysToCredential :: Term s (PScriptHash :--> PTxOut :--> PBool)
 paysToCredential = phoistAcyclic $
   plam $ \valHash txOut -> unTermCont $ do
     let txOutCred = pfield @"credential" # (pfield @"address" # txOut)
@@ -48,18 +68,27 @@ ptryOwnInput = phoistAcyclic $
   plam $ \inputs ownRef ->
     precList (\self x xs -> pletFields @'["outRef", "resolved"] x $ \txInFields -> pif (ownRef #== txInFields.outRef) txInFields.resolved (self # xs)) (const perror) # inputs
 
-pscriptHashFromOut :: (PIsListLike list PTxInInfo) => Term s (PTxOut :--> PScriptHash)
+pscriptHashFromOut :: Term s (PTxOut :--> PScriptHash)
 pscriptHashFromOut = phoistAcyclic $
   plam $ \out ->
-   pmatch (pfield @"address" # out) $ \case 
-    PPubKeyHash _ -> perror 
+   pmatch  (pfield @"credential" # (pfield @"address" # out)) $ \case 
+    PPubKeyCredential _ -> perror 
     PScriptCredential ((pfield @"_0" #) -> cred) -> cred 
+
+-- pelimList Arguments:
+-- 1. function that returns something, runs when not empty
+-- 2. nilCase -> what happens when list is empty    
+-- 3. list to recurse on 
 
 pheadSingleton :: (PListLike list, PElemConstraint list a) => Term s (list a :--> a)
 pheadSingleton = phoistAcyclic $
   plam $ \xs ->
-    pelimList (\x xs -> pif (pnull # xs) x (ptraceError "List contains more than one element.")) perror xs
+    pelimList (\x xs -> (pelimList (\_ _ -> perror) x xs)) perror xs 
 
+-- Expand given list of conditions with pand' 
+-- evalutates arguments strictly
+pand'List :: [Term s PBool] -> Term s PBool
+pand'List = foldr1 (\res x -> pand' # res # x)
 
 emurgoValidator :: Term s (PCurrencySymbol :--> PDaoDatum :--> PDaoAction :--> PScriptContext :--> PUnit)
 emurgoValidator = phoistAcyclic $ plam $ \stateCS dat redeemer ctx -> unTermCont $ do
@@ -71,51 +100,60 @@ emurgoValidator = phoistAcyclic $ plam $ \stateCS dat redeemer ctx -> unTermCont
 
     datF <- pletFieldsC @'["approvedSignatories", "requiredNoOfSigs"] dat 
     let ownInput = ptryOwnInput # infoF.inputs # ownRef 
-    ownInputF <- pletFields @'["value", "address"] ownInput 
+    ownInputF <- pletFieldsC @'["value", "address"] ownInput 
     PScriptCredential ((pfield @"_0" #) -> ownValHash) <- pmatchC $ pfield @"credential" # ownInputF.address
     let ownOutput = pheadSingleton #$ pfilter # (paysToCredential # ownValHash) # infoF.outputs 
-    ownOutputF <- pletFields @'["value", "datum"] # ownOutput
+    ownOutputF <- pletFieldsC @'["value", "datum"] ownOutput
     let outDatum = pfromPDatum @PDaoDatum # (ptryFromInlineDatum # ownOutputF.datum)
-    outDatumF <- pletFields @'["approvedSignatories", "requiredNoOfSigs"] outDatum 
+    outDatumF <- pletFieldsC @'["approvedSignatories", "requiredNoOfSigs"] outDatum 
+    newApprovedSigs :: Term _ (PBuiltinList (PAsData PPubKeyHash)) <- pletC $ pfromData outDatumF.approvedSignatories 
+    sigs :: Term _ (PBuiltinList (PAsData PPubKeyHash)) <- pletC infoF.signatories 
     
-    sigs <- pletC infoF.signatories 
-    
-    stateTn <- pletC (pcon PTokenName (pto ownValHash))
-
+    stateTn <- pletC (pcon (PTokenName (pto ownValHash)))
 
     pure $ 
       pif 
         (pvalueOf # ownInputF.value # stateCS # stateTn #== 1 
           #&& pvalueOf # ownOutputF.value # stateCS # stateTn #== 1
           #&& 
-            pmatch redeemer $ \case 
+            (pmatch redeemer $ \case 
                 Add r -> 
-                  plet (plength # outDatumF.approvedSignatories) $ \outLength ->
-                    (plength # (pfilter # plam (\x -> pelem # x # datF.approvedSignatories) # sigs) #>= datF.requiredNoOfSigs)
-                        #&& ownInputF.value #<= ownOutputF.value 
-                        #&& outLength #== (plength # datF.approvedSignatories) + 1
-                        #&& plistEquals # (ptail # outDatumF.approvedSignatories) # datF.approvedSignatories
-                        #&& pnot $# pelem # (phead # outDatumF.approvedSignatories) # outDatumF.approvedSignatories
-                        #&& outLength #> outDatumF.requiredNoOfSigs
-                        #&& outLength #< 8 
+                  plet (plength # newApprovedSigs) $ \outLength ->
+                    plet (pfield @"pkh" # r) $ \pkh ->
+                      pand'List 
+                        [ (plength # (pfilter # plam (\x -> pelem # x # datF.approvedSignatories) # sigs) #>= datF.requiredNoOfSigs)
+                        , pfromData ownInputF.value #<= pfromData ownOutputF.value
+                        , outLength #== (plength @PBuiltinList @(PAsData PPubKeyHash) # datF.approvedSignatories) + 1
+                        , plistEquals # (ptail # newApprovedSigs) # datF.approvedSignatories
+                        , pnot #$ pelem # (phead # newApprovedSigs) # (ptail # newApprovedSigs)
+                        , pkh #== (phead # newApprovedSigs)
+                        , outLength #> pfromData outDatumF.requiredNoOfSigs
+                        , outLength #< 8 
+                        ]
                 Remove r ->
-                  plet (plength # outDatumF.approvedSignatories) $ \outLength ->
+                  plet (plength # newApprovedSigs) $ \outLength ->
                     plet (pfield @"pkh" # r) $ \pkh ->
                       (plength # (pfilter # plam (\x -> pelem # x # datF.approvedSignatories) # sigs) #>= datF.requiredNoOfSigs)
-                          #&& ownInputF.value #<= ownOutputF.value 
-                          #&& outLength #== (plength # datF.approvedSignatories) - 1
-                          #&& pall # plam (\x -> pelem # x # outDatumF.approvedSignatories) # datF.approvedSignatories
-                          #&& pelem # pkh # datF.approvedSignatories
-                          #&& pnot #$ pelem # pkh # outDatumF.approvedSignatories
-                          #&& outLength #> outDatumF.requiredNoOfSigs
+                        #&& pfromData ownInputF.value #<= pfromData ownOutputF.value 
+                        #&& outLength #== (plength # pfromData datF.approvedSignatories) - 1
+                        #&& pall # plam (\x -> pelem # x # newApprovedSigs #|| pkh #== x) # datF.approvedSignatories
+                        #&& pelem # pkh # datF.approvedSignatories
+                        #&& pnot # (pelem # pkh # newApprovedSigs)
+                        #&& outLength #> pfromData outDatumF.requiredNoOfSigs
                 Approve _ -> 
                   plength # (pfilter # plam (\x -> pelem # x # datF.approvedSignatories) # sigs) #>= datF.requiredNoOfSigs
                     #&& datF.requiredNoOfSigs #== outDatumF.requiredNoOfSigs
-                    #&& plistEquals # datF.approvedSignatories # outDatumF.approvedSignatories
+                    #&& plistEquals # pfromData datF.approvedSignatories # newApprovedSigs
+            )
           )
           (pconstant ())
           perror 
 
+emurgoDAOValidatorW :: ClosedTerm (PCurrencySymbol :--> PValidator)
+emurgoDAOValidatorW = plam $ \cs datum redeemer ctx -> unTermCont $ do 
+  (dat, _) <- ptryFromC @PDaoDatum datum 
+  (redmr, _) <- ptryFromC @PDaoAction redeemer 
+  pure $ popaque $ emurgoValidator # cs # dat # redmr # ctx
 
 psingletonTokenNameWithCS :: 
   forall 
@@ -137,8 +175,10 @@ psingletonTokenNameWithCS = phoistAcyclic $ plam $ \policyId val ->
                   perror 
                 )
           )
+          (self # xs)
         )
-
+      (const perror)
+      # pto val'
 
 pvalidateDaoStateMint :: Term s (PTxOutRef :--> PScriptContext :--> PUnit)
 pvalidateDaoStateMint = phoistAcyclic $ plam $ \oref context -> unTermCont $ do 
@@ -153,28 +193,31 @@ pvalidateDaoStateMint = phoistAcyclic $ plam $ \oref context -> unTermCont $ do
                             in txInRef #== oref
                         )
                       # infoF.inputs
-  mintedTn <- psingletonTokenNameWithCS # pdata ownPolicyId # infoF.mint 
-  txOutputs <- pletC infoF.outputs 
+  mintedTn <- pletC $ psingletonTokenNameWithCS # pdata ownPolicyId # infoF.mint 
+  txOutputs :: Term _ (PBuiltinList PTxOut) <- pletC infoF.outputs 
 
   let mintsToVh = 
-    pany 
-      # plam 
-        (\txo -> 
-          pletFields @'["address", "datum", "value"] $\txoF ->
-            pmatch (pfield @"credential" # txoF.address) $ \case 
-              PScriptCredential ((pfield @"_0" #) -> cvh) -> 
-                let outDatum = pfromPDatum @PDaoDatum # (ptryFromInlineDatum # txoF.datum)
-                 in pletFields @'["requiredNoOfSigs", "approvedSignatories"] outDatum $ \outDF ->
-                  pto cvh #== pto mintedTn
-                      #&& pvalueOf # txoF.value # ownPolicyId # mintedTn #== 1
-                      #&& plength # outDF.approvedSignatories #>= outDF.requiredNoOfSigs
-              PPubKeyCredential _ -> pconstant False 
-        )
-      # txOutputs 
+        pany @PBuiltinList
+          # plam (\txo -> 
+                    pletFields @'["address", "datum", "value"] txo $ \txoF ->
+                      pmatch (pfield @"credential" # txoF.address) $ \case 
+                        PScriptCredential ((pfield @"_0" #) -> cvh) -> 
+                          let outDatum = pfromPDatum @PDaoDatum # (ptryFromInlineDatum # txoF.datum)
+                           in pletFields @'["requiredNoOfSigs", "approvedSignatories"] outDatum $ \outDF ->
+                                pfromData (pto cvh) #== pto mintedTn
+                                  #&& pvalueOf # txoF.value # ownPolicyId # mintedTn #== 1
+                                  #&& (plength @PBuiltinList # outDF.approvedSignatories) #>= outDF.requiredNoOfSigs
+                        PPubKeyCredential _ -> pconstant False 
+                  )
+          # txOutputs 
+  
   pure $
     pif 
       ( isUTxOSpent 
           #&& mintsToVh
+          #&& ppositiveSymbolValueOf # ownPolicyId # infoF.mint #== 1
       )   
+      (pconstant ())
+      perror 
   
   

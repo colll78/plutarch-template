@@ -1,7 +1,15 @@
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Utils where 
 
 import Plutarch.Api.V2
 import Plutarch.Prelude
+import "liqwid-plutarch-extra" Plutarch.Extra.TermCont 
+import "liqwid-plutarch-extra" Plutarch.Extra.List (plookupAssoc)
+
+pexpectJust :: Term s r -> Term s (PMaybe a) -> TermCont @r s (Term s a)
+pexpectJust escape ma = tcont $ \f -> pmatch ma $ \case
+  PJust v -> f v 
+  PNothing -> escape 
 
 psymbolValueOfHelper ::
   forall
@@ -62,3 +70,11 @@ pnegativeSymbolValueOf ::
   Term s (PCurrencySymbol :--> (PValue keys amounts :--> PInteger))
 pnegativeSymbolValueOf = phoistAcyclic $ psymbolValueOfHelper #$ plam (#< 0)
 
+(#>) :: PPartialOrd t => Term s t -> Term s t -> Term s PBool
+a #> b = b #< a
+infix 4 #>
+
+(#>=) :: (PPartialOrd t) => Term s t -> Term s t -> Term s PBool
+a #>= b = b #<= a
+
+infix 4 #>=
