@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module DAOValidator (emurgoDAOValidatorW) where
+module DAOValidator (emurgoDAOValidatorW, pvalidateDaoStateMintW) where
 
 import Plutarch.Api.V2 
 import Plutarch.Api.V1 (PCredential (PPubKeyCredential, PScriptCredential))
@@ -149,11 +149,11 @@ emurgoValidator = phoistAcyclic $ plam $ \stateCS dat redeemer ctx -> unTermCont
           (pconstant ())
           perror 
 
-emurgoDAOValidatorW :: ClosedTerm (PCurrencySymbol :--> PValidator)
+emurgoDAOValidatorW :: ClosedTerm (PAsData PCurrencySymbol :--> PValidator)
 emurgoDAOValidatorW = plam $ \cs datum redeemer ctx -> unTermCont $ do 
   (dat, _) <- ptryFromC @PDaoDatum datum 
   (redmr, _) <- ptryFromC @PDaoAction redeemer 
-  pure $ popaque $ emurgoValidator # cs # dat # redmr # ctx
+  pure $ popaque $ emurgoValidator # pfromData cs # dat # redmr # ctx
 
 psingletonTokenNameWithCS :: 
   forall 
@@ -220,4 +220,6 @@ pvalidateDaoStateMint = phoistAcyclic $ plam $ \oref context -> unTermCont $ do
       (pconstant ())
       perror 
   
-  
+pvalidateDaoStateMintW :: ClosedTerm (PTxOutRef :--> PMintingPolicy)
+pvalidateDaoStateMintW = phoistAcyclic $ plam $ \oref _redeemer ctx -> 
+    popaque $ pvalidateDaoStateMint # oref # ctx 

@@ -123,8 +123,31 @@ library
 
   hs-source-dirs:  src
 
+common dependencies
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , base
+    , base16-bytestring
+    , bytestring
+    , cardano-binary
+    , cborg
+    , data-default
+    , directory
+    , liqwid-plutarch-extra
+    , plutarch
+    , plutarch-extra
+    , plutus-core
+    , plutus-ledger-api
+    , plutus-simple-model
+    , plutus-tx
+    , ply-core
+    , ply-plutarch
+    , serialise
+    , text
+
 executable plutarch-template
-  import:         lang
+  import:         lang, dependencies
   main-is:        Main.hs
 
   -- Modules included in this executable, other than Main.
@@ -132,11 +155,7 @@ executable plutarch-template
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
-  build-depends:
-    , base
-    , data-default
-    , plutarch
-    , plutarch-template
-    , ply-plutarch
+  build-depends: plutarch-template
+   
 
   hs-source-dirs: app

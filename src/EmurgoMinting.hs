@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-module EmurgoMinting (emurgoMintingPolicy) where
+module EmurgoMinting (emurgoMintingPolicy, emurgoOnchainMetadataValidatorW) where
 
 import Plutarch.Api.V2 
 import Plutarch.Api.V1 (PCredential (PPubKeyCredential, PScriptCredential))
@@ -37,7 +37,7 @@ instance DerivePlutusType PMintAction where
 instance PTryFrom PData (PAsData PMintAction)
 
 treasuryValHash :: Term s PScriptHash 
-treasuryValHash = pconstant "deadbeef"
+treasuryValHash = pconstant "791d504ef072be11979a3c722bf1a46a8af77be7326fb7949da497c1"
 
 mintingCost :: Term s PInteger 
 mintingCost = 75_000_000
@@ -59,7 +59,7 @@ emurgoMintingPolicyT = phoistAcyclic $ plam $ \oref redeemer ctx -> unTermCont $
     pif 
       ( pmatch redeemer $ \case 
           PMint -> 
-            minted #== 1 
+            minted #== 2 
               #&& burned #== 0  
               #&& pany @PBuiltinList 
                     # plam (\txo -> pletFields @["value", "address"] txo $ \txoF -> 
@@ -86,6 +86,14 @@ emurgoMintingPolicy = plam $ \oref redeemer ctx -> unTermCont $ do
   (redmr, _) <- ptryFromC @(PAsData PMintAction) redeemer 
   pure $ popaque $ emurgoMintingPolicyT # oref # pfromData redmr # ctx
 
+
+-- emurgoOnchainMetadataValidator :: ClosedTerm (PAsData PCurrencySymbol :--> PValidator)
+-- emurgoOnchainMetadataValidator = phoistAcyclic $ plam $ \emurgoCS _dat _redeemer context -> unTermCont $ do
+--   ctx <- pletFieldsC @'["txInfo"] context 
+--   txInfoF <- pletFieldsC @'["inputs", "outputs"] ctx.txInfo 
+emurgoOnchainMetadataValidatorW :: ClosedTerm (PAsData PCurrencySymbol :--> PValidator)
+emurgoOnchainMetadataValidatorW = phoistAcyclic $ plam $ \emurgoCS _dat _redeemer _context -> 
+  pif (emurgoCS #== emurgoCS) perror perror 
 
 (#>) :: POrd t => Term s t -> Term s t -> Term s PBool
 a #> b = b #< a
