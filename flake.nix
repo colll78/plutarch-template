@@ -1,15 +1,15 @@
 {
   description = "plutarch-template";
 
-  nixConfig = {
-    extra-experimental-features = [ "nix-command" "flakes" "ca-derivations" ];
-    extra-substituters = [ "https://cache.iog.io" ];
-    extra-trusted-public-keys = [ "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" ];
-    allow-import-from-derivation = "true";
-    bash-prompt = "\\[\\e[0;92m\\][\\[\\e[0;92m\\]nix develop:\\[\\e[0;92m\\]\\w\\[\\e[0;92m\\]]\\[\\e[0;92m\\]$ \\[\\e[0m\\]";
-    max-jobs = "auto";
-    auto-optimise-store = "true";
-  };
+  # nixConfig = {
+  #   extra-experimental-features = [ "nix-command" "flakes" "ca-derivations" ];
+  #   extra-substituters = [ "https://cache.iog.io" ];
+  #   extra-trusted-public-keys = [ "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" ];
+  #   allow-import-from-derivation = "true";
+  #   bash-prompt = "\\[\\e[0;92m\\][\\[\\e[0;92m\\]nix develop:\\[\\e[0;92m\\]\\w\\[\\e[0;92m\\]]\\[\\e[0;92m\\]$ \\[\\e[0m\\]";
+  #   max-jobs = "auto";
+  #   auto-optimise-store = "true";
+  # };
 
   inputs = {
     tooling.url = "github:mlabs-haskell/mlabs-tooling.nix";

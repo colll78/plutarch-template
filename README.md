@@ -1,5 +1,5 @@
 # Plutarch Template
-
+nix develop 
 
 
 # License

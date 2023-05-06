@@ -72,10 +72,13 @@ pvalidateTestTyped = phoistAcyclic $ plam $ \dparam redeemer ctx -> unTermCont $
       (pconstant ())
       perror
 
+-- PValidator := PData -> PData -> PScriptContext -> PUnit 
+-- Validator := BuiltinData -> BuiltinData -> ScriptContext -> () 
 pvalidateTestW :: Term s (PDataParam :--> PValidator)
 pvalidateTestW = phoistAcyclic $ plam $ \dparam _dat redeemer ctx -> unTermCont $ do 
   (redm, _) <- ptryFromC @PTestRedeemer redeemer
   pure $ popaque $ pvalidateTestTyped # dparam # redm # ctx
+  
 -- type DatumParam {
 --   pubkey_hash: Hash<Blake2b_224, VerificationKey>,
 --   password: ByteArray,

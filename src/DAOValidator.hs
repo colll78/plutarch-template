@@ -40,8 +40,14 @@ instance DerivePlutusType PDaoAction where
 instance PTryFrom PData (PAsData PDaoAction)
 instance PTryFrom PData PDaoAction 
 
-data PDaoDatum (s :: S) = 
-   PDaoDatum (Term s (PDataRecord '["approvedSignatories" ':= PBuiltinList (PAsData PPubKeyHash), "requiredNoOfSigs" ':= PInteger]))
+data PDaoDatum (s :: S) = PDaoDatum 
+   (Term s 
+    (PDataRecord 
+      '["approvedSignatories" ':= PBuiltinList (PAsData PPubKeyHash),
+        "requiredNoOfSigs" ':= PInteger
+       ]
+    )
+  )
  deriving stock (Generic)
  deriving anyclass (PlutusType, PIsData, PDataFields)
 

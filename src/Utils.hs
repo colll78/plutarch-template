@@ -70,6 +70,17 @@ pnegativeSymbolValueOf ::
   Term s (PCurrencySymbol :--> (PValue keys amounts :--> PInteger))
 pnegativeSymbolValueOf = phoistAcyclic $ psymbolValueOfHelper #$ plam (#< 0)
 
+-- Expand given list of conditions with pand' 
+-- evalutates arguments strictly
+pand'List :: [Term s PBool] -> Term s PBool
+pand'List = foldr1 (\res x -> pand' # res # x)
+
+pcond :: [(Term s PBool, Term s a)] ->
+  Term s a -> 
+  Term s a 
+pcond [] def = def 
+pcond ((cond, x) : conds) def = pif cond x (pcond conds def)
+
 (#>) :: PPartialOrd t => Term s t -> Term s t -> Term s PBool
 a #> b = b #< a
 infix 4 #>
