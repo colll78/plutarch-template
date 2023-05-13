@@ -15,7 +15,7 @@ import Plutarch.Api.V1.Value
 import Plutarch.Bool
 import Plutarch.Prelude
 import Plutarch.Extra.ScriptContext (ptryFromInlineDatum, pfromPDatum)
-import Utils (ppositiveSymbolValueOf, (#>), (#>=))
+import Utils (ppositiveSymbolValueOf, (#>), (#>=), pand'List)
 import "liqwid-plutarch-extra" Plutarch.Extra.TermCont 
 
 pkh1 :: Term s PPubKeyHash 
@@ -72,7 +72,12 @@ paysToCredential = phoistAcyclic $
 ptryOwnInput :: (PIsListLike list PTxInInfo) => Term s (list PTxInInfo :--> PTxOutRef :--> PTxOut)
 ptryOwnInput = phoistAcyclic $
   plam $ \inputs ownRef ->
-    precList (\self x xs -> pletFields @'["outRef", "resolved"] x $ \txInFields -> pif (ownRef #== txInFields.outRef) txInFields.resolved (self # xs)) (const perror) # inputs
+    precList (\self x xs -> 
+      pletFields @'["outRef", "resolved"] x $ \txInFields -> 
+        pif (ownRef #== txInFields.outRef) txInFields.resolved (self # xs)
+      ) 
+      (const perror)
+      # inputs
 
 pscriptHashFromOut :: Term s (PTxOut :--> PScriptHash)
 pscriptHashFromOut = phoistAcyclic $
@@ -85,16 +90,10 @@ pscriptHashFromOut = phoistAcyclic $
 -- 1. function that returns something, runs when not empty
 -- 2. nilCase -> what happens when list is empty    
 -- 3. list to recurse on 
-
 pheadSingleton :: (PListLike list, PElemConstraint list a) => Term s (list a :--> a)
 pheadSingleton = phoistAcyclic $
   plam $ \xs ->
     pelimList (\x xs -> (pelimList (\_ _ -> perror) x xs)) perror xs 
-
--- Expand given list of conditions with pand' 
--- evalutates arguments strictly
-pand'List :: [Term s PBool] -> Term s PBool
-pand'List = foldr1 (\res x -> pand' # res # x)
 
 emurgoValidator :: Term s (PCurrencySymbol :--> PDaoDatum :--> PDaoAction :--> PScriptContext :--> PUnit)
 emurgoValidator = phoistAcyclic $ plam $ \stateCS dat redeemer ctx -> unTermCont $ do

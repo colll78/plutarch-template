@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module EmurgoMinting (emurgoMintingPolicy, emurgoOnchainMetadataValidatorW) where
@@ -5,12 +7,17 @@ module EmurgoMinting (emurgoMintingPolicy, emurgoOnchainMetadataValidatorW) wher
 import Plutarch.Api.V2 
 import Plutarch.Api.V1 (PCredential (PPubKeyCredential, PScriptCredential))
 import Plutarch.DataRepr
+import Plutarch.Lift 
 import Plutarch.Api.V1.Value 
 import Plutarch.Prelude
 import Plutarch.Extra.IsData (EnumIsData (..), PlutusTypeEnumData)
 import Plutarch.Extra.Value (psymbolValueOf')
 import "liqwid-plutarch-extra" Plutarch.Extra.TermCont 
+import "liqwid-plutarch-extra" Plutarch.Extra.ScriptContext (pfromPDatum)
 import Utils (pand'List, pcond)
+import PlutusTx qualified 
+import PlutusTx.AssocMap qualified as AssocMap 
+import PlutusLedgerApi.V1 (BuiltinData(..), Value(..), BuiltinByteString)
 -- data MintAction = Mint   
 --                 | Burn 
 
@@ -27,6 +34,7 @@ import Utils (pand'List, pcond)
 
 -- PMint: 0
 -- PBurn: 1 
+
 data PMintAction (s :: S) = PMint | PBurn
  deriving stock (Generic, Enum, Bounded)
  deriving anyclass (PlutusType, PIsData, PEq, PShow)
@@ -35,11 +43,6 @@ instance DerivePlutusType PMintAction where
   type DPTStrat _ = PlutusTypeEnumData 
 
 instance PTryFrom PData (PAsData PMintAction)
-
--- Constr 0 [Data, Integer, Data]
-data DatumMetadata = DatumMetadata { metadata :: BuiltinData, version :: Integer, extra :: CreditScoreInfo}
-PlutusTx.makeLift ''DatumMetadata
-PlutusTx.makeIsDataIndexed ''DatumMetadata[('DatumMetadata, 0)]
 
 data CreditScoreInfo = CreditScoreInfo 
   { creditScore :: Integer
@@ -53,6 +56,12 @@ data CreditScoreInfo = CreditScoreInfo
   }
 PlutusTx.makeLift ''CreditScoreInfo
 PlutusTx.makeIsDataIndexed ''CreditScoreInfo[('CreditScoreInfo, 0)]
+
+-- Constr 0 [Data, Integer, Data]
+data DatumMetadata = DatumMetadata { metadata :: BuiltinData, version :: Integer, extra :: CreditScoreInfo}
+PlutusTx.makeLift ''DatumMetadata
+PlutusTx.makeIsDataIndexed ''DatumMetadata [('DatumMetadata, 0)]
+
 
 data PCreditScoreInfo ( s :: S ) =
   PCreditScoreInfo (Term s (PDataRecord 
@@ -80,7 +89,7 @@ deriving via (DerivePConstantViaData CreditScoreInfo PCreditScoreInfo) instance 
 data PMintMetadataDatum ( s :: S ) =
   PMintMetadataDatum (Term s (PDataRecord '["metadata" ':= PData, "version" ':= PInteger, "extra" ':= PCreditScoreInfo]))
   deriving stock (Generic)
-  deriving anyclass (PlutusType, PIsData, PDataFields, PShow)
+  deriving anyclass (PlutusType, PIsData, PDataFields, PEq, PShow)
 
 instance DerivePlutusType PMintMetadataDatum where
   type DPTStrat _ = PlutusTypeData
@@ -94,7 +103,7 @@ enforcedNFTMetadata :: Term s PMintMetadataDatum
 enforcedNFTMetadata = pconstant nftMetadataDatum 
   where
     nftMetadataDatum :: DatumMetadata 
-    nftMetadataDatum = DatumMetadata {metadata = enforcedMetadata, version = 0, extra = creditScoreInfo}
+    nftMetadataDatum = DatumMetadata {metadata = PlutusTx.toBuiltinData enforcedMetadata, version = 0, extra = creditScoreInfo}
 
     creditScoreInfo :: CreditScoreInfo 
     creditScoreInfo = CreditScoreInfo
@@ -132,10 +141,14 @@ label222 :: Term s PByteString
 label222 = phexByteStr "000de140" -- 13
 
 ptryLookupValue :: 
+  forall
+    (keys :: KeyGuarantees)
+    (amounts :: AmountGuarantees)
+    (s :: S). 
   Term s 
     ( PAsData PCurrencySymbol
-        :--> PValue 'Sorted 'Positive
-        :--> PBuiltinList (PBuiltinPair (PAsData PTokenName) (PAsData PInteger))
+        :--> PValue keys amounts 
+        :--> (PBuiltinList (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)))
     )
 ptryLookupValue = phoistAcyclic $ plam $ \policyId val ->
   let valItems = pto (pto val)
@@ -144,7 +157,7 @@ ptryLookupValue = phoistAcyclic $ plam $ \policyId val ->
           ( \y ys ->
               pif
                 (policyId #== (pfstBuiltin # y))
-                (pto (psndBuiltin # y))
+                (pto (pfromData (psndBuiltin # y)))
                 (self # ys)
           )
           perror
@@ -168,17 +181,17 @@ emurgoMintingPolicyT = phoistAcyclic $ plam $ \oref redeemer ctx -> unTermCont $
   
   mintedItems <- pletC $ ptryLookupValue # ownCS # infoF.mint
   refTokenPair <- pletC $ phead # mintedItems 
-  userTokenPair <- pletC $ phead # (ptail # mintedItems)
+  userTokenPair <- pletC $ ptryIndex 1 mintedItems 
 
   let txOutputs :: Term _ (PBuiltinList PTxOut) 
       txOutputs = infoF.outputs  
-      refTokenName = pfstBuiltin # refTokenPair
-      refTokenAmnt = psndBuiltin # refTokenPair
-      userTokenName = pfstBuiltin # userTokenPair 
-      userTokenAmnt = psndBuiltin # userTokenPair 
+      refTokenName = pfromData $ pfstBuiltin # refTokenPair
+      refTokenAmnt = pfromData $ psndBuiltin # refTokenPair
+      userTokenName = pfromData $ pfstBuiltin # userTokenPair 
+      userTokenAmnt = pfromData $ psndBuiltin # userTokenPair 
 
-      PPair userLabel userTn <- pmatchC (pbreakTokenName userTokenName)
-      PPair refLabel refTn <- pmatchC (pbreakTokenName refTokenName)
+  PPair userLabel _userTn <- pmatchC (pbreakTokenName userTokenName)
+  PPair refLabel _refTn <- pmatchC (pbreakTokenName refTokenName)
 
   pure $
     pif 
@@ -190,16 +203,16 @@ emurgoMintingPolicyT = phoistAcyclic $ plam $ \oref redeemer ctx -> unTermCont $
               , refLabel #== label100 
               , userLabel #== label222 
               , pany @PBuiltinList 
-                  # plam (\txo -> pletFields @["value", "address", "datum"] txo $ \txoF -> 
-                        pmatch (pfield @"credential" # txoF.address) $ \case
-                          PPubKeyCredential _ -> perror 
-                          PScriptCredential vh ->
-                            (pfield @"_0" # vh) #== metadataControlValHash) 
-                              #&& pvalueOf # txoF.value # ownCS # refTokenName
-                              #&& pmatch txoF.datum (\case
-                                    OutputDatum dat -> (pfromPDatum @PMintMetadataDatum # dat) #== enforcedNFTMetadata
-                                    _ -> perror 
-                                    )             
+                  # plam (\txo -> pletFields @["value", "address", "datum"] txo (\txoF -> 
+                      pmatch (pfield @"credential" # txoF.address) (\case
+                        PPubKeyCredential _ -> perror 
+                        PScriptCredential vh ->
+                          (pfield @"_0" # vh) #== metadataControlValHash) 
+                            #&& pvalueOf # txoF.value # pfromData ownCS # refTokenName #== 1
+                            #&& pmatch txoF.datum (\case
+                                  POutputDatum dat -> (pfromPDatum @PMintMetadataDatum # (pfield @"outputDatum" # dat)) #== enforcedNFTMetadata
+                                  _ -> perror 
+                                  )))            
                   # txOutputs               
               , pnull # (ptail # (ptail # mintedItems))
               , pany @PBuiltinList 
@@ -217,7 +230,7 @@ emurgoMintingPolicyT = phoistAcyclic $ plam $ \oref redeemer ctx -> unTermCont $
                     )
                   # infoF.inputs
               ]
-          PBurn -> pand'List [userTokenAmnt #== pconstant -1, refTokenAmnt #== pconstant -1]
+          PBurn -> pand'List [userTokenAmnt #== pconstant (-1), refTokenAmnt #== pconstant (-1)]
       ) 
       (pconstant ())
       perror 

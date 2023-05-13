@@ -3,6 +3,7 @@ module Utils where
 
 import Plutarch.Api.V2
 import Plutarch.Prelude
+import Plutarch.Bool
 import "liqwid-plutarch-extra" Plutarch.Extra.TermCont 
 import "liqwid-plutarch-extra" Plutarch.Extra.List (plookupAssoc)
 
@@ -87,5 +88,4 @@ infix 4 #>
 
 (#>=) :: (PPartialOrd t) => Term s t -> Term s t -> Term s PBool
 a #>= b = b #<= a
-
 infix 4 #>=

@@ -1,7 +1,9 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 module Main (main) where
 
 import EmurgoMinting qualified
 import DAOValidator qualified 
+import ParamApp qualified 
 import Data.Default (
   def,
  )
@@ -64,6 +66,7 @@ writePlutusScript title filepath term = do
 
 main :: IO ()
 main = do
+  -- strPutLn $ ParamApp.toSchema (DataParam {pkh = "deadbeef", password = "deadbeef"})
   writeTypedScript def "minting" "./compiled/emurgoMintingPolicy.plutus" EmurgoMinting.emurgoMintingPolicy
   writePlutusScript "multisig" "./compiled/multisigValidator.plutus" DAOValidator.emurgoDAOValidatorW
   writePlutusScript "metadata" "./compiled/metadataControl.plutus" EmurgoMinting.emurgoOnchainMetadataValidatorW
