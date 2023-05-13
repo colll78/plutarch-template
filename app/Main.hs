@@ -71,3 +71,4 @@ main = do
   writePlutusScript "multisig" "./compiled/multisigValidator.plutus" DAOValidator.emurgoDAOValidatorW
   writePlutusScript "metadata" "./compiled/metadataControl.plutus" EmurgoMinting.emurgoOnchainMetadataValidatorW
   writePlutusScript "multisigStateMint" "./compiled/multisigStateMint.plutus" DAOValidator.pvalidateDaoStateMintW
+  -- writePlutusScript "smallValidator" "./compiled/smallValidator.plutus" SmallValidator.pvalidateSmallChecksW

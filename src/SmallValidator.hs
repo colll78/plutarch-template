@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -5,15 +7,13 @@
 
 module SmallValidator where
 
-import Plutarch (Config)
+import Plutarch
+import Plutarch.Prelude
 import Plutarch.Api.V1 (
   PCredential (PPubKeyCredential, PScriptCredential),
  )
 import Plutarch.Api.V2 
-import Plutarch.DataRepr (
-  DerivePConstantViaData (..),
-  PDataFields,
- )
+import Plutarch.DataRepr
 import "liqwid-plutarch-extra" Plutarch.Extra.TermCont (
   pletC,
   pletFieldsC,
@@ -22,26 +22,12 @@ import "liqwid-plutarch-extra" Plutarch.Extra.TermCont (
  )
 import Plutarch.Lift (PConstantDecl, PUnsafeLiftDecl (..))
 import Plutarch.Unsafe (punsafeCoerce)
-import PlutusLedgerApi.V2 (
-  CurrencySymbol,
-  MintingPolicy,
-  TxOutRef,
- )
 import PlutusTx qualified
 
 --data OurDatum = OurDatum {password :: BuiltinByteString}
 
-data POurDatum = POurDatum (Term s PDataRecord '[ "password" ':= PByteString ])
-  deriving (Generic)
-  deriving anyclass (PlutusType, PIsData, PDataFields)
-
-instance PlutusType POurDatum where 
-    type DPTStrat _ = PlutusTypeData 
-
-instance PTryFrom PData POurDatum 
-
-data POurRedeemer = POurRedeemer (Term s PDataRecord '[ "password" ':= PByteString ])
-  deriving (Generic)
+data POurDatum (s :: S) = POurDatum (Term s (PDataRecord '[ "password" ':= PByteString ]))
+  deriving stock (Generic)
   deriving anyclass (PlutusType, PIsData, PDataFields)
 
 instance DerivePlutusType POurDatum where 
@@ -49,10 +35,21 @@ instance DerivePlutusType POurDatum where
 
 instance PTryFrom PData POurDatum 
 
+data POurRedeemer (s :: S) = POurRedeemer (Term s (PDataRecord '[ "password" ':= PByteString ]))
+  deriving stock (Generic)
+  deriving anyclass (PlutusType, PIsData, PDataFields)
+
+instance DerivePlutusType POurRedeemer where 
+    type DPTStrat _ = PlutusTypeData 
+
+instance PTryFrom PData POurRedeemer  
+
 -- validateSmallChecks :: OurDatum -> OurRedeemer -> ScriptContext -> () 
 pvalidateSmallChecks :: Term s (POurDatum :--> POurRedeemer :--> PScriptContext :--> PUnit)
-pvalidateSmallChecks = phoistAcyclic $ plam $ \datum redeemer ctx -> unTermCont $ do 
+pvalidateSmallChecks = phoistAcyclic $ plam $ \_datum _redeemer _ctx -> unTermCont $ do 
+    pure $ pconstant () 
 
+-- type PValidator = PData :--> PData :--> PScriptContext :--> POpaque
 pvalidateSmallChecksW :: Term s PValidator 
 pvalidateSmallChecksW = phoistAcyclic $ plam $ \datum redeemer ctx ->
     let ourDatum :: Term _ POurDatum 

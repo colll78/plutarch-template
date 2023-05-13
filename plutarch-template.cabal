@@ -101,6 +101,7 @@ library
     DAOValidator
     ParamApp
     Utils 
+    SmallValidator
   -- Compile
 
   build-depends:
