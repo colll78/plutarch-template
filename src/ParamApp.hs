@@ -53,8 +53,8 @@ PlutusTx.makeIsDataIndexed ''DataParam [('DataParam, 0)]
 -- getFieldNames = TypeData.constrFields . head . TypeData.dataTypeConstrs $ TypeData.dataTypeOf (undefined :: a)
 --(constrFields . toConstr) ourType 
 
--- ourConstructors :: [Constr] 
--- ourConstructors = TypeData.dataTypeConstrs $ TypeData.dataTypeOf (undefined :: DataParam)
+-- ourConstructors :: (a :: Type) => [Constr] 
+-- ourConstructors = TypeData.dataTypeConstrs $ TypeData.dataTypeOf (undefined :: a)
 
 -- ourTypeFields :: [[String]]
 -- ourTypeFields = map TypeData.constrFields ourConstructors

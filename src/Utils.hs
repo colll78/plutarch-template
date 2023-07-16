@@ -89,3 +89,33 @@ infix 4 #>
 (#>=) :: (PPartialOrd t) => Term s t -> Term s t -> Term s PBool
 a #>= b = b #<= a
 infix 4 #>=
+
+ptryLookupValue :: 
+  forall
+    (keys :: KeyGuarantees)
+    (amounts :: AmountGuarantees)
+    (s :: S). 
+  Term s 
+    ( PAsData PCurrencySymbol
+        :--> PValue keys amounts 
+        :--> (PBuiltinList (PBuiltinPair (PAsData PTokenName) (PAsData PInteger)))
+    )
+ptryLookupValue = phoistAcyclic $ plam $ \policyId val ->
+  let valItems = pto (pto val)
+   in (pfix #$ plam $ \self xs ->
+        pelimList
+          ( \y ys ->
+              pif
+                (policyId #== (pfstBuiltin # y))
+                (pto (pfromData (psndBuiltin # y)))
+                (self # ys)
+          )
+          perror
+          xs
+        )
+        # valItems 
+
+pbreakTokenName :: Term s PTokenName -> Term s (PPair PByteString PByteString)
+pbreakTokenName tn = 
+  let tnBS = pto tn 
+   in pcon $ PPair (psliceBS # 0 # 4 # tnBS) (psliceBS # 4 # (plengthBS # tnBS) # tnBS)

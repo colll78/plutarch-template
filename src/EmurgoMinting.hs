@@ -230,7 +230,13 @@ emurgoMintingPolicyT = phoistAcyclic $ plam $ \oref redeemer ctx -> unTermCont $
                     )
                   # infoF.inputs
               ]
-          PBurn -> pand'List [userTokenAmnt #== pconstant (-1), refTokenAmnt #== pconstant (-1)]
+          PBurn -> 
+            let listLengthIsTwo = pnull # (ptail # (ptail # mintedItems))
+             in pand'List 
+                  [ userTokenAmnt #== pconstant (-1)
+                  , refTokenAmnt #== pconstant (-1)
+                  , listLengthIsTwo
+                  ]
       ) 
       (pconstant ())
       perror 

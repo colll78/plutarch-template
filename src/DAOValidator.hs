@@ -199,7 +199,7 @@ pvalidateDaoStateMint = phoistAcyclic $ plam $ \oref context -> unTermCont $ do
                         )
                       # infoF.inputs
   mintedTn <- pletC $ psingletonTokenNameWithCS # pdata ownPolicyId # infoF.mint 
-  txOutputs :: Term _ (PBuiltinList PTxOut) <- pletC infoF.outputs 
+  txOutputs <- pletC $ infoF.outputs :: Term _ (PBuiltinList PTxOut) 
 
   let mintsToVh = 
         pany @PBuiltinList
