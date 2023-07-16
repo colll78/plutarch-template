@@ -10,6 +10,8 @@ module SmallValidator where
 
 import Plutarch
 import Plutarch.Prelude
+import Data.Text qualified as T
+import Plutarch.Monadic qualified as P 
 import Plutarch.Api.V1 (
   PCredential (PPubKeyCredential, PScriptCredential),
  )
@@ -26,6 +28,20 @@ import Plutarch.Unsafe (punsafeCoerce)
 import PlutusTx qualified
 
 --data OurDatum = OurDatum {password :: BuiltinByteString}
+
+ptryOwnInput :: Term s (PBuiltinList PTxInInfo :--> PTxOutRef :--> PTxOut)
+ptryOwnInput = phoistAcyclic $
+  plam $ \inputs ownRef ->
+    precList (\self x xs -> pletFields @'["outRef", "resolved"] x $ \txInFields -> pif (ownRef #== txInFields.outRef) txInFields.resolved (self # xs)) (const perror) # inputs
+
+passert ::
+  forall (s :: S) (a :: PType).
+  T.Text -> -- long trace
+  Term s PBool ->
+  Term s a ->
+  Term s a
+passert longErrorMsg b inp = pif b inp $ ptraceError (pconstant longErrorMsg)
+
 
 data POurDatum (s :: S) = POurDatum (Term s (PDataRecord '[ "password" ':= PByteString ]))
   deriving stock (Generic)
@@ -50,7 +66,7 @@ instance PTryFrom PData POurRedeemer
 
 -- validateSmallChecks :: OurDatum -> OurRedeemer -> ScriptContext -> () 
 pvalidateSmallChecks :: Term s (POurDatum :--> POurRedeemer :--> PScriptContext :--> PUnit)
-pvalidateSmallChecks = phoistAcyclic $ plam $ \_datum _redeemer _ctx -> unTermCont $ do 
+pvalidateSmallChecks = phoistAcyclic $ plam $ \_datum redeemer _ctx -> unTermCont $ do 
     pure $ 
       pif
         ( pmatch
@@ -60,9 +76,22 @@ pvalidateSmallChecks = phoistAcyclic $ plam $ \_datum _redeemer _ctx -> unTermCo
               PGuess _ -> pconstant True 
             ) 
         )
-        pconstant ()
+        (pconstant ())
         perror 
-    
+
+ptryOwnOutput :: (PIsListLike list PTxOut) => Term s (list PTxOut :--> PAddress :--> PTxOut)
+ptryOwnOutput = phoistAcyclic $
+  plam $ \outs target ->
+    ( pfix #$ plam $ \self xs ->
+        pelimList
+          ( \txo txos ->
+              pif (target #== (pfield @"address" # txo)) txo (self # txos)
+          )
+          perror
+          xs
+    )
+      # outs
+
 -- type PValidator = PData :--> PData :--> PScriptContext :--> POpaque
 pvalidateSmallChecksW :: Term s PValidator 
 pvalidateSmallChecksW = phoistAcyclic $ plam $ \datum redeemer ctx ->
@@ -88,7 +117,7 @@ instance DerivePlutusType PFunDatum where
     type DPTStrat _ = PlutusTypeData 
 
 fooValidator :: Term s (PFunDatum :--> PData :--> PScriptContext :--> PUnit)
-fooValidator = phoistAcyclic $ plam \dat _ ctx -> P.do 
+fooValidator = phoistAcyclic $ plam $ \dat _ ctx -> P.do 
   datF <- pletFields @'["password", "index"] dat 
   ctxF <- pletFields @'["purpose", "txInfo"] ctx
   infoF <- pletFields @'["inputs", "mint", "outputs"] ctxF.txInfo 
@@ -97,17 +126,17 @@ fooValidator = phoistAcyclic $ plam \dat _ ctx -> P.do
   PSpending ownRef' <- pmatch ctxF.purpose 
   ownRef <- plet (pfield @"_0" # ownRef') 
 
-  let ownInput = ptryOwnInput # ownRef # infoF.inputs 
+  let ownInput = ptryOwnInput # infoF.inputs # ownRef
   ownInputF <- pletFields @'["value", "address"] ownInput 
   
-  ownAddress <- pletC ownInputF.address
+  ownAddress <- plet ownInputF.address
   
-  let ownOutput = pfind # plam (\txo -> pfield @"address" # txo #== ownAddress) # infoF.outputs 
+  let ownOutput = ptryOwnOutput # infoF.outputs # ownAddress 
   ownOutputF <- pletFields @'["value", "address"] ownOutput 
 
-  passert "value is preserved" $ ownInputF.value #== ownOutputF.value 
+ -- (passert "value is preserved" $ ownInputF.value #== ownOutputF.value)
 
-  pconstant () 
+  (pconstant ()) 
 
 data PSomething (s :: S) = 
   PA (Term s (PDataRecord '[ "password" ':= PByteString ]))

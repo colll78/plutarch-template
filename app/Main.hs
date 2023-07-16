@@ -2,7 +2,7 @@
 module Main (main) where
 
 import EmurgoMinting qualified
-import DAOValidator qualified 
+--import DAOValidator qualified 
 import ParamApp qualified 
 import Data.Default (
   def,
@@ -68,7 +68,7 @@ main :: IO ()
 main = do
   -- strPutLn $ ParamApp.toSchema (DataParam {pkh = "deadbeef", password = "deadbeef"})
   writeTypedScript def "minting" "./compiled/emurgoMintingPolicy.plutus" EmurgoMinting.emurgoMintingPolicy
-  writePlutusScript "multisig" "./compiled/multisigValidator.plutus" DAOValidator.emurgoDAOValidatorW
+--  writePlutusScript "multisig" "./compiled/multisigValidator.plutus" DAOValidator.emurgoDAOValidatorW
   writePlutusScript "metadata" "./compiled/metadataControl.plutus" EmurgoMinting.emurgoOnchainMetadataValidatorW
-  writePlutusScript "multisigStateMint" "./compiled/multisigStateMint.plutus" DAOValidator.pvalidateDaoStateMintW
+  -- writePlutusScript "multisigStateMint" "./compiled/multisigStateMint.plutus" DAOValidator.pvalidateDaoStateMintW
   --writePlutusScript "smallValidator" "./compiled/smallValidator.plutus" SmallValidator.pvalidateSmallChecksW

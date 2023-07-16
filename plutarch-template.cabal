@@ -98,7 +98,7 @@ library
   import:          lang
   exposed-modules: 
     EmurgoMinting
-    DAOValidator
+    -- DAOValidator
     ParamApp
     Utils 
     SmallValidator
