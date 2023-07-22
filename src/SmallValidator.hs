@@ -137,6 +137,7 @@ fooValidator = phoistAcyclic $ plam $ \dat _ ctx -> P.do
  -- (passert "value is preserved" $ ownInputF.value #== ownOutputF.value)
 
   (pconstant ()) 
+  
 
 data PSomething (s :: S) = 
   PA (Term s (PDataRecord '[ "password" ':= PByteString ]))
