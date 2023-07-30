@@ -9,14 +9,58 @@
 module SmallValidator where
 
 import Plutarch
+    ( S,
+      type (:-->),
+      (#),
+      (#$),
+      perror,
+      phoistAcyclic,
+      plet,
+      pfix,
+      popaque,
+      pmatch,
+      unTermCont,
+      PType,
+      Term,
+      plam,
+      DerivePlutusType(..),
+      PlutusType )
 import Plutarch.Prelude
+    ( Generic,
+      PData,
+      pif,
+      pfield,
+      pletFields,
+      pconstant,
+      precList,
+      ptraceError,
+      PBool,
+      PEq((#==)),
+      PBuiltinList,
+      PIsData,
+      PByteString,
+      PDataRecord,
+      PLabeledType((:=)),
+      PlutusTypeData,
+      PInteger,
+      PIsListLike,
+      PListLike(pelimList),
+      PTryFrom,
+      PUnit )
 import Data.Text qualified as T
 import Plutarch.Monadic qualified as P 
 import Plutarch.Api.V1 (
   PCredential (PPubKeyCredential, PScriptCredential),
  )
-import Plutarch.Api.V2 
-import Plutarch.DataRepr
+import Plutarch.Api.V2
+    ( PAddress,
+      PScriptPurpose(PSpending),
+      PTxOutRef,
+      PValidator,
+      PScriptContext,
+      PTxInInfo,
+      PTxOut ) 
+import Plutarch.DataRepr ( PDataFields )
 import "liqwid-plutarch-extra" Plutarch.Extra.TermCont (
   pletC,
   pletFieldsC,
@@ -26,8 +70,6 @@ import "liqwid-plutarch-extra" Plutarch.Extra.TermCont (
 import Plutarch.Lift (PConstantDecl, PUnsafeLiftDecl (..))
 import Plutarch.Unsafe (punsafeCoerce)
 import PlutusTx qualified
-
---data OurDatum = OurDatum {password :: BuiltinByteString}
 
 ptryOwnInput :: Term s (PBuiltinList PTxInInfo :--> PTxOutRef :--> PTxOut)
 ptryOwnInput = phoistAcyclic $
@@ -41,7 +83,6 @@ passert ::
   Term s a ->
   Term s a
 passert longErrorMsg b inp = pif b inp $ ptraceError (pconstant longErrorMsg)
-
 
 data POurDatum (s :: S) = POurDatum (Term s (PDataRecord '[ "password" ':= PByteString ]))
   deriving stock (Generic)
@@ -101,7 +142,6 @@ pvalidateSmallChecksW = phoistAcyclic $ plam $ \datum redeemer ctx ->
         ourRedeemer = punsafeCoerce redeemer
      in popaque $ pvalidateSmallChecks # ourDatum # ourRedeemer # ctx 
 
-
 data PFunDatum (s :: S) = PFunDatum 
   (Term s 
     (PDataRecord 
@@ -138,7 +178,6 @@ fooValidator = phoistAcyclic $ plam $ \dat _ ctx -> P.do
 
   (pconstant ()) 
   
-
 data PSomething (s :: S) = 
   PA (Term s (PDataRecord '[ "password" ':= PByteString ]))
   | PB (Term s (PDataRecord '[]))

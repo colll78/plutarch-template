@@ -1,6 +1,6 @@
 {
   description = "plutarch-template";
-
+  nixConfig.bash-prompt = "\\[\\e[0m\\][\\[\\e[0;2m\\]nix-develop \\[\\e[0;1m\\]Template \\[\\e[0;32m\\]\\w\\[\\e[0m\\]]\\[\\e[0m\\]$ \\[\\e[0m\\]";
   # nixConfig = {
   #   extra-experimental-features = [ "nix-command" "flakes" "ca-derivations" ];
   #   extra-substituters = [ "https://cache.iog.io" ];

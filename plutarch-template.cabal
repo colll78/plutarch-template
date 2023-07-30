@@ -99,10 +99,11 @@ library
   exposed-modules: 
     EmurgoMinting
     -- DAOValidator
+    Basics
     ParamApp
     Utils 
     SmallValidator
-  -- Compile
+    HandsOn
 
   build-depends:
     , aeson
